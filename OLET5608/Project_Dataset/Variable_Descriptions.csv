@@ -1,0 +1,22 @@
+Variable,Description
+RID,Unique participant identifier ID
+PTAU,Amount of phosphorylated tau protein in the CSF
+AGE,Age in years 
+PTGENDER,Sex of the participant
+PTEDUCAT,Years of education
+PTRACCAT,Ethnicity
+PTMARRY,Marital status 
+APOE4,Presence of one or two APOE E4 alleles
+FDG,"Average FDG-PET of angular, temporal, and posterior cingulate"
+ABETA,Amount of amyloid-beta protein in the CSF
+MMSE,Mini-Mental State Examination (MMSE) cognitive score
+CDRSB,Clinical Dementia Rating Sum of Box (CDR-SB) score
+ADAS11,11-component test of language and memory
+ADAS13,ADAS11 with additional delayed recall and digit cancellation tasks 
+Ventricles,Volume (mm3) of the ventricles
+Hippocampus,Volume (mm3) of the hippocampus
+WholeBrain,Volume (mm3) of the whole brain
+Entorhinal,Volume (mm3) of the entorhinal cortex
+Fusiform,Volume (mm3) of the fusiform gyrus
+MidTemp,Volume (mm3) of the middle temporal cortex
+ICV,Volume (mm3) of the whole brain (i.e. brain tissue plus ventricles combined)
