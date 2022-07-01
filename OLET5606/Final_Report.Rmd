@@ -1,0 +1,107 @@
+---
+title: "OLET5606"
+author: "Annie Bryant"
+date: '2022-06-27'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = F, message = F}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(skimr)
+library(naniar)
+```
+
+# 1. Executive Summary
+
+This project report details the exploratory analysis and cleaning of cross-sectional neuroimaging and clinical data obtained from the [Open Acess Series of Imaging Studies (OASIS): Cross-Sectional Study](https://doi.org/10.1162/jocn.2007.19.9.1498). The dataset includes 416 adult participants at various points along the cognitive continuum from normal healthy aging to dementia. A linear modeling approach was taken to examine relationships between clinical and neuroanatomical variables and cognitive function, which ultimately yielded an $R^2$ value of [INSERT]. Such analyses can help us understand the key factors that contribute to cognitive decline versus normative aging with an increasingly older population.
+
+# 2. Integrative Data Analysis (IDA)
+
+In recent years, there has been an increasing push to form multi-centre collaborations that integrate clinical, neuroimaging, and biomolecular data in a global effort to understand the multifactorial nature of dementia. Several consortiums have committed to sharing such rich datasets with academic researchers around the world, like ADNI, AIBL, and OASIS (ADD LINKS).
+
+This project report summarises the acquisition of such data from OASIS-3 and subsequent data cleaning, visualisation, and linear modeling. As this analysis is transparent and reproducible given the inclusion of all code used for this workflow, this work will be of interest to stakeholders with a shared interest in exploring the factors that collectively drive dementia, whether in the OASIS-3 dataset or similar.
+
+## 2.1 Assessment of Data Provenance
+
+Origin of data cited and critically assessed, including reliability and limitations. 
+
+[Quick summary of OASIS -- what it is, who maintains the data]. The OASIS Cross-Sectional study includes 416 participants of ages 18 to 96 assessed at the Washington University at Saint Louis (WUSTL) Knight Alzheimer's Disease Research Center (ADRC). Each visit per subject included a suite of structural and functional neuroimaging sequences that capture relevant anatomical biomarkers like cortical thickness, ventricle volume, and regional metabolism. All OASIS data is maintained at the [Central XNAT server](https://wiki.xnat.org/central/oasis-on-xnat-central-60981641.html) and is available to members of the research community by submitting a [data access application](https://www.oasis-brains.org/#access). Data were provided in part by the following Principal Investigators: D. Marcus, R, Buckner, J, Csernansky J. Morris; P50 AG05681, P01 AG03991, P01 AG026276, R01 AG021910, P20 MH071616, U24 RR021382.
+
+[insert something about reliability of OASIS? How many citations does OASIS-1 cross-sectional have?]
+
+## 2.2 Domain Knowledge -- Background to Data assessed, including source, ethics and limitations. 
+
+All data and metadata accessed for this project were obtained from the [OASIS website](https://www.oasis-brains.org/#data). Any user who accesses OASIS data is required to comply with the [Data Use Agreement](https://www.oasis-brains.org/#access); as such, the author signed the data use agreement and submitted a request to access the data for this assignment. [Insert something about ethics -- all participants agreed for their data to be made available when enrolling in OASIS, etc.]
+
+Upon complying with the data use agreement, the OASIS-1 cross-sectional dataset ("oasis_cross-sectional.csv") was downloaded as a CSV file from the [OASIS website](https://www.oasis-brains.org/#data) under the OASIS-1 tab. This cross-sectional dataset contains a total of 416 participants at various stages along the cognitive continuum from normative healthy aging to dementia. Of these 416, a validation cohort of 20 participants returned for a second set of observations, yielding a total of 436 observations in the dataset. Further information about this dataset can be found in the [OASIS cross-sectional data fact sheet](https://www.oasis-brains.org/files/oasis_cross-sectional_facts.pdf) and the [OASIS Data Dictionary](https://www.oasis-brains.org/files/OASIS-3_Imaging_Data_Dictionary_v1.5.pdf).
+
+
+Load in data using `read.csv()`:
+```{r}
+oasis_data <- read.csv("oasis_cross-sectional.csv")
+```
+
+We can visualize an overview of the data structure using `skimr::skim()`:
+```{r}
+skim(oasis_data)
+```
+
+Some variables (e.g. M.F, Age, Hand) are self-explanatory (i.e. sex, age in years, handedness). However, for other variables, domain knowledge is needed to understanding their meaning and interpretation. For example, the author recognized that `MMSE` and `CDR` are two common measures of cognitive function often reported in dementia studies. `MMSE` refers to the [Mini Mental State Examination score](CITE), which is a cognitive test with scores ranging from 0 (lowest cognitive function) to 30 (highest cognitive function). The first variable in this dataset is a random identifier ascribed to each participant. The subscript _MR1 or _MR2 refers to whether the observation corresponds to the participant's first visit or follow-up validation visit.  `CDR` refers to the [Clinical Dementia Rating](https://doi.org/10.1192/bjp.140.6.566), which is a test for dementia with scores of 0 (healthy), 0.5 (questionable dementia), 1 (mild dementia), 2 (moderate dementia), or 3 (severe dementia). 
+
+Additionally, the author recognized two variables that are commonly used in structural neuroimaging research: `eTIV` and `nWBV`. `eTIV` refers to [estimated total intracranial volume](https://doi.org/10.1016/j.neuroimage.2004.06.018), which captures the total volume of brain tissue and ventricles in $mm^3$. Similarly, `nWBV` generally refers to [normalized whole brain volume](https://doi.org/10.1212/01.wnl.0000154530.72969.11), which is a ratio of the brain tissue to the eTIV -- this captures how much cranial space is occupied by brain tissue relative to cerebrospinal fluid (CSF). The latter metric is particularly relevant to dementia, as neurodegeneration causes cortical tissue to shrink and ventricles to enlarge with more CSF [CITE]. The author recognized that `ID` is likely a unique subject identifier; `Educ` is likely education level; and `SES` is likely socioeconomic status. However, the meaning of values in these columns is not clear without reading the fact sheet. The remaining variables (`ASF` and `Delay`) also remain unclear without further reading.
+
+The [fact sheet](https://www.oasis-brains.org/files/oasis_cross-sectional_facts.pdf) helped clarify the meaning and interpretation of these variables. As expected, `ID` is a unique subject identifier. This type of variable is customary for anonymised neuroimaging datasets so that researchers can link observations from the same participant across different datasets without needing any information that gives away the participant's identity. The subscript "_MR1" or "_MR2" refers to whether the observation corresponds to a baseline visit or a follow-up visit for the 20 participants with a second validation visit. This can be directly examined with data wrangling:
+
+```{r}
+oasis_data %>%
+  # Focus just on ID
+  dplyr::select(ID) %>%
+  # Separate out _MR subscript
+  tidyr::separate("ID", c("Subject", "Visit"), sep="_MR") %>%
+  # Tabulate the number of first and second visits
+  dplyr::group_by(Visit) %>%
+  dplyr::count()
+```
+
+There are 416 observations corresponding to visit #1 and 20 visits corresponding to visit #2, which aligns with the N=416 participants. Additionally, `Educ` refers to the highest level of education and has five possible values: 1 (less than high school), 2 (high school), 3 (some college), 4 (college), 5 (beyond college degree). The fact sheet also clarified that `ASF` refers to an [Atlas scaling factor](https://doi.org/10.1016/j.neuroimage.2004.06.018), which is a unit-less volume-scaling quantity needed to align each participant's MRI scan volume to a common atlas volume (specifically, the determinant of the transform matrix applied for atlas alignment). 
+
+`SES` refers to socioecononmic status, but the fact sheet does not indicate what the values (ranging from 1 to 5) indicate. However, the [publication](https://doi.org/10.1162/jocn.2007.19.9.1498) accompanying the release of the cross-sectional dataset clarified that SES is measured according to the [Hollingshead Index of Social Position](https://www.worldcat.org/title/two-factor-index-of-social-position/oclc/1895094), with 1 being the highest bracket and 5 being the lowest. The fact sheet did not explicitly state what the `Delay` variable indicates, but it was clarified in a [kaggle discussion forum](https://www.kaggle.com/datasets/jboysen/mri-and-alzheimers/discussion/118621) that this refers to the number of days (<90) between visits for participants who returned for a follow-up validation study.
+
+Now that the interpretation of 
+
+
+## 2.3 Exploration of Missing Data and Outliers
+
+Exploration of missing data with naniar package or other tools, and identify and explain any impact outliers found may have
+
+```{r}
+naniar::vis_miss(oasis_data)
+```
+
+
+## 2.4 Data Cleaning
+
+Summary of any data cleaning, including removal or changing of data
+
+Remove subjects with validation follow-up visits
+```{r}
+oasis_data %>%
+  rowwise() %>%
+  mutate(Subject_ID = str_split(ID, "_MR")[[1]][1],
+         MR_Number = as.numeric(str_split(ID, "_MR")[[1]][2])) %>%
+  filter(as.numeric(MR_Number) == 1)
+```
+
+# 3. Research Question 
+
+Extremely thorough analysis, with novel insights.
+
+# 4. Conclusions
+
+Explanation of how data wrangling tools have helped generate insightful answers to these research questions.
