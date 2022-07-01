@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 ```
 
 ```{r, echo = F, message = F}
@@ -14,6 +14,9 @@ library(tidyverse)
 library(knitr)
 library(kableExtra)
 library(skimr)
+library(patchwork)
+library(cowplot)
+theme_set(theme_cowplot())
 library(naniar)
 ```
 
@@ -44,7 +47,7 @@ Upon complying with the data use agreement, the OASIS-1 cross-sectional dataset 
 
 Load in data using `read.csv()`:
 ```{r}
-oasis_data <- read.csv("oasis_cross-sectional.csv")
+oasis_data <- read.csv("oasis_cross-sectional.csv", na.strings = c("", "NA", "N/A"))
 ```
 
 We can visualize an overview of the data structure using `skimr::skim()`:
@@ -71,36 +74,150 @@ oasis_data %>%
 
 There are 416 observations corresponding to visit #1 and 20 visits corresponding to visit #2, which aligns with the N=416 participants. Additionally, `Educ` refers to the highest level of education and has five possible values: 1 (less than high school), 2 (high school), 3 (some college), 4 (college), 5 (beyond college degree). The fact sheet also clarified that `ASF` refers to an [Atlas scaling factor](https://doi.org/10.1016/j.neuroimage.2004.06.018), which is a unit-less volume-scaling quantity needed to align each participant's MRI scan volume to a common atlas volume (specifically, the determinant of the transform matrix applied for atlas alignment). 
 
-`SES` refers to socioecononmic status, but the fact sheet does not indicate what the values (ranging from 1 to 5) indicate. However, the [publication](https://doi.org/10.1162/jocn.2007.19.9.1498) accompanying the release of the cross-sectional dataset clarified that SES is measured according to the [Hollingshead Index of Social Position](https://www.worldcat.org/title/two-factor-index-of-social-position/oclc/1895094), with 1 being the highest bracket and 5 being the lowest. The fact sheet did not explicitly state what the `Delay` variable indicates, but it was clarified in a [kaggle discussion forum](https://www.kaggle.com/datasets/jboysen/mri-and-alzheimers/discussion/118621) that this refers to the number of days (<90) between visits for participants who returned for a follow-up validation study.
+`SES` refers to socioecononmic status, but the fact sheet does not indicate what the values (ranging from 1 to 5) indicate. However, the [OASIS publication](https://doi.org/10.1162/jocn.2007.19.9.1498) accompanying the release of the cross-sectional dataset clarified that SES is measured according to the [Hollingshead Index of Social Position](https://www.worldcat.org/title/two-factor-index-of-social-position/oclc/1895094), with 1 being the highest bracket and 5 being the lowest. The fact sheet did not explicitly state what the `Delay` variable indicates, but it was clarified in a [kaggle discussion forum](https://www.kaggle.com/datasets/jboysen/mri-and-alzheimers/discussion/118621) that this refers to the number of days (<90) between visits for participants who returned for a follow-up validation study.
 
-Now that the interpretation of 
+Now that the interpretation of variables is clearer, we can visualize the distribution of each variable across all of the participants:
+
+```{r}
+# Function to emulate the ggplot default color palette for a given number of features
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+# Function to create either a histogram or bar chart for each feature
+# Depending on whether it's numerical or categorical, respectively
+plot_func <- function(df, plot_list) {
+  num_features <- length(colnames(df))
+  plot_palette <- gg_color_hue(num_features)
+  for (i in 1:length(colnames(df))) {
+    feature <- sort(colnames(df))[i]
+    if (is.numeric(df %>% pull(feature))) {
+      feature_p <- df %>%
+        dplyr::select(all_of(feature)) %>%
+        dplyr::mutate(row_id = dplyr::row_number()) %>%
+        pivot_longer(cols=c(-row_id),
+                     names_to = "Variable",
+                     values_to = "Raw_Value") %>%
+        ggplot(data=., mapping=aes(x=Raw_Value)) +
+        geom_histogram(fill = plot_palette[i]) 
+    } else {
+      feature_p <- df %>%
+        dplyr::select(all_of(feature)) %>%
+        dplyr::mutate(row_id = dplyr::row_number()) %>%
+        pivot_longer(cols=c(-row_id),
+                     names_to = "Variable",
+                     values_to = "Value") %>%
+        group_by(Variable, Value) %>%
+        count() %>%
+        ggplot(data=., mapping=aes(x = Value, y = n)) +
+        geom_bar(stat = "identity", fill = plot_palette[i])
+    }
+    feature_p <- feature_p  +
+      facet_wrap(Variable ~ ., scales="free") +
+      theme(axis.text.x = element_text(angle=90, hjust=1, vjust=0.4, size=7),
+            axis.text.y = element_text(size=7),
+            plot.title = element_text(hjust=0.5, size=9),
+            axis.title = element_blank(),
+            strip.text = element_text(size=8),
+            legend.position = "none")
+    plot_list <- rlist::list.append(plot_list, feature_p)
+  }
+  
+  return(plot_list)
+}
+
+# Generate list of plots, one per OASIS dataset feature (other than ID)
+plot_list <- plot_func(oasis_data %>% dplyr::select(-ID),
+                       list())
+
+# Draw the plots
+patchwork::wrap_plots(plot_list, ncol=4) + plot_annotation(
+  title = 'Distribution of Features in OASIS Dataset'
+) & theme(plot.margin = unit(c(0.05, 0.05, 0.05, 0.05), "cm"),
+          plot.title = element_text(size=12))
+grid::grid.draw(grid::textGrob("Number of Participants", x = 0.01, rot = 90))
+grid::grid.draw(grid::textGrob("Feature Value", y = 0.01))
+```
+Of note, most participants are either younger than 25 or between the ages of ~60-80. `ASF` and `eTIV` both exhibit fairly normal distributions. CDR = 0 is the most common score, corresponding to the "non-demented" participant cohort. For validation study participants, most intervals between scans are less than 50 days. Participants are fairly spread out across educational and socioeconomic brackets, although the lowest education (1) and SES (5) levels have far fewer participants than the other levels. All participants in this cohort are right-handed, so this variable does not provide any added information. There are more female than male participants, and `MMSE` exhibits right skew (i.e. toward higher cognitive performance). `nWBV` exhibits a bimodal distribution, with one section centred around 0.75 and the other around 0.85.
 
 
-## 2.3 Exploration of Missing Data and Outliers
+## 2.3 Exploration of Missing Data and Outliers: Exploration of missing data with naniar package or other tools, and identify and explain any impact outliers found may have
 
-Exploration of missing data with naniar package or other tools, and identify and explain any impact outliers found may have
+Now that the type and distribution of the variables has been characterised, it is vital to examine the frequency and distribution of missing data. This can be easily accomplished using the `naniar` package and the `vis_miss()` function:
 
 ```{r}
 naniar::vis_miss(oasis_data)
 ```
 
+Importantly, this plot shows that for 46.1% (201) observations, `Educ`, `MMSE`, and `CDR` values are missing; for 50.46% (220) observations, `SES` is missing; and for 95.4% (416) of observations, `Delay` is missing. It makes sense for `Delay` to be missing for all but 20 observations, since there are only 20 validation follow-up visits in the dataset which have a corresponding delay time. However, missing data for the other four variables is not intuitively clear, and the author was unable to find any explicit rationale for this missing data in the corresponding [fact sheet](https://www.oasis-brains.org/files/oasis_cross-sectional_facts.pdf) or [journal publication](https://doi.org/10.1162/jocn.2007.19.9.1498).
 
-## 2.4 Data Cleaning
+In terms of outliers, we can visually estimate their presence using boxplots for the quantitative variables -- `Age`, `MMSE`, `eTIV`, `nWBV`, `ASF`, and `Delay`:
 
-Summary of any data cleaning, including removal or changing of data
-
-Remove subjects with validation follow-up visits
 ```{r}
 oasis_data %>%
+  dplyr::select(ID, Age, MMSE, eTIV, nWBV, ASF, Delay) %>%
+  pivot_longer(cols = c(-ID), names_to = "Variable", values_to = "Value") %>%
+  ggplot(data = ., mapping = aes(x = Variable, y = Value, color = Variable)) +
+  geom_boxplot(fill = NA) +
+  facet_wrap(Variable ~ ., scales = "free") +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+The boxplot visualization reveals that there are 0 outliers for `Age` and `nWBV`, 1 outlier for `Delay` and `eTIV`, 2 outliers for `ASF`, and 6 outliers for `MMSE`. For `eTIV`, `ASF`, and `MMSE`, the outlier samples most likely reflect genuine anatomical and cognitive variability across participants; however, the `Delay` outlier just reflects one participant for whom the gap between visits was much longer (>75 days) than for the other participants (most <50 days).
+
+## 2.4 Data Cleaning: Summary of any data cleaning, including removal or changing of data
+
+As the primary goal for this project is to explore cross-sectional data from healthy and cognitively impaired participants, the first step for data cleaning will be to filter the data to only baseline visits (i.e. drop follow-up validation visits):
+
+```{r}
+oasis_data <- oasis_data %>%
   rowwise() %>%
   mutate(Subject_ID = str_split(ID, "_MR")[[1]][1],
          MR_Number = as.numeric(str_split(ID, "_MR")[[1]][2])) %>%
   filter(as.numeric(MR_Number) == 1)
 ```
 
+After dropping those samples, here is the updated distribution of missing data:
+
+```{r}
+naniar::vis_miss(oasis_data)
+```
+
+Clearly, the `Delay` column offers no information for the baseline visits, so that column will be dropped. Additionally, >40% of data is missing for `Educ`, `SES`, `MMSE`, and `CDR`, meaning it will be very difficult to accurately impute such data. For the purposes of this project, rows with `NA` values for these columns will also be dropped.
+
+```{r}
+oasis_data <- oasis_data %>%
+  # Drop Delay
+  dplyr::select(-Delay) %>%
+  # Omit NA for Educ, SES, MMSE, and CDR
+  tidyr::drop_na(c("Educ", "SES", "MMSE", "CDR"))
+```
+
+We can re-examine the structure of the cleaned OASIS data now:
+
+```{r}
+skimr::skim(oasis_data)
+```
+Now there are no missing data across the features. However, since the `Hand` column contains all "R" (i.e. all participants are right-handed), this column should also be dropped since it offers no added information:
+
+```{r}
+oasis_data <- dplyr::select(oasis_data, c(-Hand))
+```
+
+
 # 3. Research Question 
 
-Extremely thorough analysis, with novel insights.
+## 3.1 Definition of research question
+
+This project endeavors to explore whether the cognitive, anatomical, and demographic variables contained in this dataset can predict whether an individual is cognitively healthy (CDR = 0) or has some degree of dementia (CDR > 0). INSERT CITATION ABOUT PREDICTING CDR SCORES. 
+
+## 3.2 Comparing classification methods
+
+Random forest (original variables) + logistic regression (dummy variables)
+
+## 3.3 Results
 
 # 4. Conclusions
 
