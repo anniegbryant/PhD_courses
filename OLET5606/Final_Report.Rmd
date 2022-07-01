@@ -14,10 +14,12 @@ library(tidyverse)
 library(knitr)
 library(kableExtra)
 library(skimr)
+library(naniar)
+library(caret)
+library(randomForest)
 library(patchwork)
 library(cowplot)
 theme_set(theme_cowplot())
-library(naniar)
 ```
 
 # 1. Executive Summary
@@ -175,7 +177,8 @@ As the primary goal for this project is to explore cross-sectional data from hea
 oasis_data <- oasis_data %>%
   rowwise() %>%
   mutate(Subject_ID = str_split(ID, "_MR")[[1]][1],
-         MR_Number = as.numeric(str_split(ID, "_MR")[[1]][2])) %>%
+         MR_Number = as.numeric(str_split(ID, "_MR")[[1]][2]),
+         .keep = "unused") %>%
   filter(as.numeric(MR_Number) == 1)
 ```
 
@@ -211,13 +214,154 @@ oasis_data <- dplyr::select(oasis_data, c(-Hand))
 
 ## 3.1 Definition of research question
 
-This project endeavors to explore whether the cognitive, anatomical, and demographic variables contained in this dataset can predict whether an individual is cognitively healthy (CDR = 0) or has some degree of dementia (CDR > 0). INSERT CITATION ABOUT PREDICTING CDR SCORES. 
+This project endeavors to explore whether the anatomical and demographic variables contained in this dataset can predict whether an individual is cognitively healthy (CDR = 0) or has some degree of dementia (CDR > 0). INSERT CITATION ABOUT PREDICTING CDR SCORES. This question will be explored using two different types of binary classifiers: logistic regression and linear support vector machine.
+
+First, it is hypothesized that `MMSE` and `CDR` will be tightly correlated as they are both measures of cognitive function, and may therefore introduce redundancy to the data.
+
+```{r}
+oasis_data %>%
+  ggplot(data = ., mapping = aes(x = CDR, y = MMSE)) +
+  geom_point()
+```
+The correlation can be quantified using Spearman's rho:
+```{r}
+cor.test(oasis_data$CDR, oasis_data$MMSE, method="spearman")
+```
+Since `MMSE` and `CDR` exhibit a moderately strong negative correlation ($\rho = -0.69, p<0.0001$), `MMSE` will be dropped as it is redundant to `CDR`. 
+
+```{r}
+oasis_data <- oasis_data %>% dplyr::select(-MMSE)
+```
+
+To move forwar with classification analysis, a binary variable (`has_dementia`) can be constructed from `CDR`:
+
+```{r}
+oasis_data <- oasis_data %>%
+  dplyr::mutate(has_dementia = CDR > 0, .keep = "unused")
+
+table(oasis_data$has_dementia)
+```
+
+Of note, there are 83 participants with dementia and 133 participants without dementia. At this point, the `Subject_ID` and `MR_Number` columns can be dropped as the data is prepared for classification analysis and they are not relevant to classification:
+
+```{r}
+oasis_data <- dplyr::select(oasis_data, c(-Subject_ID, -MR_Number))
+```
+
 
 ## 3.2 Comparing classification methods
 
-Random forest (original variables) + logistic regression (dummy variables)
+First, the data is split 75/25 into two subsets: training (N=162) and testing (N=54). This is done using stratified sampling to preserve `has_dementia` proportions with `caret::createDataPartition()`:
+
+```{r}
+# Set seed for reproducibility
+set.seed(127)
+
+# Define training rows
+training_index <- caret::createDataPartition(oasis_data$has_dementia, p = .75, list = FALSE)
+
+# Separate out training and testing datasets
+training_data <- oasis_data[training_index, ]
+testing_data <- oasis_data[-training_index, ]
+```
+
+We can confirm that the proportion of healthy vs. demented participants is the same in the two datasets:
+
+```{r}
+prop.table(table(training_data$has_dementia))
+prop.table(table(testing_data$has_dementia))
+```
+The proportions are consisent, $\pm 1\%$. Now we can construct the two classification models, beginning with logistic regression:
+
+```{r}
+# Logistic regression
+LR_model <- glm(has_dementia ~ ., data = training_data, family = 'binomial')
+
+# Extract coefficients and significance
+data.frame(coefs = round(LR_model$coefficients, 3),
+           SE = round(summary(LR_model)$coefficients[,2], 3),
+           pvals = summary(LR_model)$coefficients[,4]) %>%
+  tibble::rownames_to_column(var = "Term") %>%
+  dplyr::filter(Term != "(Intercept)") %>%
+  dplyr::mutate(stars = case_when(pvals < 0.0001 ~ "***",
+                           pvals < 0.001 ~ "**",
+                           pvals < 0.05 ~ "*",
+                           T ~ ""),
+                .keep = "unused") %>%
+  dplyr::mutate(`Coefficient (SE)` = paste0(coefs, stars, " (", SE, ")"),
+                .keep = "unused") %>%
+  kable(.) %>%
+  kable_styling(full_width = F)
+```
+
+As shown in the above table, the only variable with statistically significant log-odds for `has_dementia` is `nWBV` -- which corresponds to normalized whole brain volume. This variable has log-odds -24.31, meaning that the probability of dementia **decreases** with increasing `nWBV`, and for every $1mm^3$ increase in `nWBV` the log-odds of the participant having dementia decreases by -24.31. The model can now be applied to the previously unseen testing data, so that out-of-sample accuracy may be evaluated in section 3.3:
+
+```{r}
+# First make in-sample predictions as a baseline comparison
+LR_train_pred_prob <- predict(LR_model, newdata = training_data, type = "response")
+LR_train_preds <- ifelse(LR_train_pred_prob < 0.5, FALSE, TRUE)
+
+# Then make out-of-sample predictions
+LR_test_pred_prob <- predict(LR_model, newdata = testing_data, type = "response")
+LR_test_preds <- ifelse(LR_test_pred_prob < 0.5, FALSE, TRUE)
+```
+
+A similar approach can be taken for the random forest classifier.
+
+```{r}
+RF_model <- randomForest(has_dementia ~ ., data=training_data, ntree=100, mtry=3, importance=TRUE)
+```
+
+While random forest classifiers don't yield coefficient estimates per variable, they do afford variable importance, which is derived from two factors: (1) increase in MSE when the given variable is omitted, indicating worse predictive performance without the variable; and (2) increase in node purity when variable is included, based on the GINI node impurity metric. These values can be visualized for the predictor terms:
+```{r}
+as.data.frame(RF_model$importance) %>%
+  rownames_to_column(var = "Term") %>%
+  pivot_longer(cols = c(-Term),
+               names_to = "Metric",
+               values_to = "Value") %>%
+  mutate(Term = fct_reorder(Term, Value, .desc = T)) %>%
+  ggplot(data = ., mapping = aes(x = Term, y = Value, 
+                                 group = Metric,
+                                 color = Metric)) +
+  geom_line() +
+  geom_point(size=1.5) +
+  facet_grid(Metric ~ ., scales = "free_y", switch = "both") +
+  theme(legend.position = "none",
+        strip.text.y.left = element_text(angle=0),
+        strip.placement = "outside")
+```
+
+Across both metrics, `nWBV` is the most important predictor term, which is in keeping with the logistic regression coefficient results. `Age` is the next most important predictor term, which is interesting given its low-magnitude coefficient (0.021) in the logistic regression model. The other five predictor terms have much lower values for both metrics in this figure, indiciating they are of lower importance to the random forest. The last step is to generate predictions for the unseen test dataset based on the RF constructed from the training dataset:
+
+```{r}
+# First make in-sample predictions as a baseline comparison
+RF_train_pred_prob <- predict(RF_model, newdata = training_data, type = "response")
+RF_train_preds <- ifelse(RF_train_pred_prob < 0.5, FALSE, TRUE)
+
+# Then make out-of-sample predictions
+RF_test_pred_prob <- predict(RF_model, newdata = testing_data, type = "response")
+RF_test_preds <- ifelse(RF_test_pred_prob < 0.5, FALSE, TRUE)
+```
+
 
 ## 3.3 Results
+
+Now that the two binary classification models have been applied to the testing data, their respective predictive performances can be compared.
+
+```{r}
+testing_data %>%
+  dplyr::rename("Real" = "has_dementia") %>%
+  dplyr::mutate("LR_train_predicted" = LR_train_preds,
+                "RF_train_predicted" = RF_train_preds,
+                "LR_test_predicted" = LR_test_preds,
+                "RF_test_predicted" = RF_test_preds) %>%
+  dplyr::summarise(LR_test_accuracy = sum(LR_test_predicted == Real)/n(),
+                   RF_test_accuracy = sum(RF_test_predicted == Real)/n(),
+                   LR_test_accuracy = sum(LR_test_predicted == Real)/n(),
+                   RF_test_accuracy = sum(RF_test_predicted == Real)/n())
+```
+
+
 
 # 4. Conclusions
 
