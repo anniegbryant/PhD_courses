@@ -1,0 +1,489 @@
+---
+title: "Data Wrangling - Live Lab 1"
+subtitle: "NYC Water Quality"
+author: "University of Sydney 2021"
+output:
+  html_document:
+    theme: flatly
+    number_sections: yes
+    self_contained: yes
+    toc: true
+    toc_float: false
+    toc_depth: 3
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+# Code Chunk Option
+knitr::opts_chunk$set(warning = FALSE, # in general don't do this!
+                      fig.align = "center",
+                      fig.retina = 4)
+
+# Reduce scientific Notation
+options(scipen = 5)
+```
+
+
+# Overview
+
+## RStudio Workspace
+
+## Contents of a Rmarkdown {`.Rmd`}
+
+## Knitting a document
+
+ - Knitting
+ - Preview in Viewer Pane
+
+
+# Setup 
+
+
+## Loading Packages
+
+1. ONLY ONCE -- Install Package
+
+  - Type:  `install.packages("put_package_name_here")` into the console
+  - e.g. `install.packages("tidyverse")`
+
+
+2. EVERY TIME YOU WANT TO USE -- Load Package
+
+  - Type: `library("put_package_name_here")` into your code chunk
+  - e.g. `library("tidyverse")`
+ 
+```{r, message = F}
+# Load Relevant Packages
+library(tidyverse) # piping `%>%`, plotting, reading data
+library(skimr) # exploratory data summary
+library(naniar) # exploratory plots
+library(kableExtra) # tables
+library(lubridate) # for date variables
+library(plotly)
+
+# Extension
+  # Try to save time by installing a package to install packages!
+  # install.packages("pacman")
+  # pacman::p_load(tidyverse, skimr, naniar, kableExtra, lubridate, plotly)
+```
+
+## Loading Data
+
+**If the data is online:**
+
+This is easy for datasets that are not too large & already hosted online!
+
+**If the data is a local file:**
+
+
+1. File Management
+
+ - In general, put your data file in the same folder as your R file.
+
+2. Setting working directory
+
+ - *If you are knitting your document*: it will automatically look for data in the same folder as your R file. So you should have no dramas (per step 1.).
+
+ - *If you are running a section of code*: you will need to specify which folder the data is in. The best way to do this is by following these menu options: `Session Menu >> Set Working Directory >> To Source File Location`.
+
+3. Load Data
+
+ - Read data using the `read_csv()` function which comes from the `tidyverse` package.
+
+
+```{r, message = F }
+# Load Data
+data = read_csv("https://www.maths.usyd.edu.au/u/UG/OL/OLEO5605/r/NYC_Drinking_Water.csv")
+#data = read_csv("Drinking_Water_Quality_Distribution_Monitoring_Data.csv")
+```
+
+
+
+# Exploratory Data Analysis
+
+## Quick Snapshot
+
+```{r}
+# Glimpse Function [From tidyverse package]
+data %>% glimpse()
+
+# Skim Function [From skimr package]
+data %>% skim()
+
+# Summary Function [From base package -- preinstalled!]
+data %>% summary()
+```
+
+
+## Exploring missingness
+
+```{r}
+# vis_miss function [From visdat or naniar packages]
+vis_miss(data, warn_large_data = FALSE)
+```
+
+## Exploring numeric variables
+
+ - What do you notice about outliers & skewness?
+
+```{r}
+data %>%
+  select(where(is.numeric)) %>%
+  pivot_longer(everything(),
+               names_to = "Variable",
+               values_to = "Value") %>%
+  group_by(Variable) %>%
+  summarise(Mean = mean(Value, na.rm = TRUE),
+            Median = median(Value, na.rm = TRUE)) %>%
+  kable() %>% # putting into a table
+  kable_styling(bootstrap_options = c("hover")) # making table look good
+```
+
+```{r}
+p = data %>%  
+  select(where(is.numeric)) %>%
+  pivot_longer(everything(), 
+               names_to = "Variable", 
+               values_to = "Value") %>% 
+  filter(!is.na(Value)) %>%
+  ggplot(aes(x = Value)) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  geom_histogram(bins = 30, fill = "lightblue", color = "darkblue") +
+  labs(y = "Frequency") +
+  theme_bw()
+
+ggplotly(p)
+```
+
+```{r}
+p = data %>%  
+  select(where(is.numeric)) %>%
+  pivot_longer(everything(), 
+               names_to = "Variable", 
+               values_to = "Value") %>% 
+  filter(!is.na(Value)) %>%
+  ggplot(aes(y = Value)) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  geom_boxplot(fill = "lightblue", color = "darkblue") +
+  theme_bw() +
+  theme(strip.text.x = element_text(size = 8))
+
+p
+```
+
+# Data Cleaning
+
+```{r}
+# See what state things are currently in
+data %>% glimpse()
+```
+
+```{r}
+# Data Cleaning
+
+## Changing type of `Sample Date`
+  # Note: mdy from [From tidyverse package]
+data = data %>% 
+  mutate(`Sample Date` = mdy(`Sample Date`))
+
+# Adding additional time columns
+data = data %>% 
+        mutate(`Week of Year` = week(`Sample Date`),  
+               `Weekday` = wday(`Sample Date`), 
+               `Month Number` = month(`Sample Date`),
+               `Hour` = hour(`Sample Time`))
+
+# Giving Month Name an Order
+data = data %>% 
+  mutate(`Month` = factor(month.name[`Month Number`], 
+                          levels = month.name))
+
+# Converting Categorical Variables to Factors
+data = data %>% 
+  mutate(across(where(is_character) & !c(Location, `Sample Site`), 
+         as_factor))
+
+# Drop NA -- Q: Do you think this is appropriate?
+# data = data %>%
+#   drop_na()
+```
+
+```{r}
+# Check we're happy with cleaned data
+data %>% glimpse()
+data %>% summary()
+```
+
+# Interrogating the data
+
+## Which date had the highest Turbidity reading?
+
+```{r}
+top_10_turbidity = data %>% 
+  arrange(desc(`Turbidity (NTU)`)) %>% 
+  select(`Sample Date`, `Turbidity (NTU)`) %>%
+  head(10)
+
+top_10_turbidity %>%
+  kable(caption = "Top 10 Turbidity readings") %>%
+  kable_styling(bootstrap_options = c("hover"))
+```
+
+The highest Turbidity rating was on `r (top_10_turbidity[[1]][1])` with a reading of `r top_10_turbidity[[2]][1]`.
+
+
+
+
+## Is there a difference between the median readings for Turbidity, Chlorine, and Fluoride for the different types of sample sites?
+
+```{r}
+class_medians = data %>% 
+  group_by(`Sample class`) %>%
+  summarise(med_chlorine = median(`Residual Free Chlorine (mg/L)`, na.rm = TRUE),
+            med_turbidity = median(`Turbidity (NTU)`, na.rm = TRUE),
+            med_flouride = median(`Fluoride (mg/L)`, na.rm = TRUE)) 
+
+class_medians %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("hover"))
+```
+
+
+## Create a boxplot to visualise the difference between Entry Point and Operational levels of Residual Free Chlorine.
+
+```{r}
+p = data %>% 
+  filter(`Sample class` == "Entry Point" | 
+         `Sample class` == "Operational") %>%
+  ggplot(aes(x = `Sample class`, 
+             y = `Residual Free Chlorine (mg/L)`)) +
+  geom_boxplot(fill = "lightblue", color = "darkblue") +
+  labs(title = "Residual Free Chlorine (mg/L) for different sample classes") +
+  theme_bw()
+
+ggplotly(p)
+```
+
+## Which sample sites have the highest and lowest median readings for each chemical?
+
+```{r}
+site_medians_wide = data %>% 
+  group_by(`Sample Site`) %>%
+  summarise(med_chlorine = median(`Residual Free Chlorine (mg/L)`, na.rm = TRUE),
+            med_turbidity = median(`Turbidity (NTU)`, na.rm = TRUE),
+            med_fluoride = median(`Fluoride (mg/L)`, na.rm = TRUE)) 
+
+# Tidy Way
+site_medians_long = site_medians_wide %>%
+  pivot_longer(!c(`Sample Site`),
+               names_to = "Median Type",
+               values_to = "Median Value")
+
+max_min_median_sites = site_medians_long %>%
+  group_by(`Median Type`) %>%
+    summarise(
+    Min_Val = min(`Median Value`, na.rm = TRUE),
+    Min_Site = paste(`Sample Site`[which(`Median Value` == Min_Val)], 
+                     collapse = ", "),
+    Max_Val = max(`Median Value`, na.rm = TRUE),
+    Max_Site = paste(`Sample Site`[which(`Median Value` == Max_Val)], 
+                     collapse = ", ")
+  )
+
+max_min_median_sites %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("hover"))
+  
+# Non-Tidy Way -- copy code for each Median Type
+# site_medians_wide %>%
+#   select(`Sample Site`, med_turbidity) %>%
+#   arrange(desc(med_turbidity)) %>%
+#   filter(row_number() %in% c(1, n()))
+# 
+# site_medians_wide %>%
+#   select(`Sample Site`, med_fluoride) %>%
+#   arrange(desc(med_fluoride)) %>%
+#   filter(row_number() %in% c(1, n()))
+# 
+# site_medians_wide %>%
+#   select(`Sample Site`, med_chlorine) %>%
+#   arrange(desc(med_chlorine)) %>%
+#   filter(row_number() %in% c(1, n()))
+```
+
+## Visualise the difference in readings between the top and bottom sites for Turbidity in different ways. Can you find anything interesting about the sites?
+
+
+```{r}
+site_names = max_min_median_sites %>%
+  filter(`Median Type` == "med_turbidity") %>%
+  select(`Min_Site`, `Max_Site`) %>%
+  t()
+
+p = data %>% 
+  filter(`Sample Site` %in% site_names) %>% 
+  ggplot(aes(x = `Turbidity (NTU)`, fill = `Sample Site`)) +
+    geom_histogram(bins = 30, color = "white") +
+    scale_fill_manual(values = c("lightblue", "darkblue")) +
+    theme_bw() +
+    labs(y = "Frequency")
+
+ggplotly(p)
+
+p = data %>% 
+  filter(`Sample Site` %in% site_names) %>% 
+  ggplot(aes(x = `Sample Date`, y = `Turbidity (NTU)`, color = `Sample Site`))+
+    geom_line() +
+    scale_color_manual(values = c("lightblue", "darkblue")) +
+    theme_bw()
+
+ggplotly(p)
+```
+
+
+## How have the median readings for each of the chemicals changed over time?
+
+```{r}
+p = data %>% 
+  
+  group_by(`Sample Date`) %>%
+  
+  summarise(med_chlorine = median(`Residual Free Chlorine (mg/L)`, na.rm = TRUE),
+            med_turbidity = median(`Turbidity (NTU)`, na.rm = TRUE),
+            med_fluoride = median(`Fluoride (mg/L)`, na.rm = TRUE)) %>%
+  
+  pivot_longer(!c(`Sample Date`),
+               names_to = "Median Type",
+               values_to = "Median Value") %>%
+  
+  ggplot(aes(x = `Sample Date`, y = `Median Value`, colour = `Median Type`)) + 
+    geom_line() +
+    scale_color_manual(values = c("#ab5f54", "lightblue", "darkblue")) +
+    theme_bw()
+
+ggplotly(p)
+```
+
+
+## There seems to be seasonality trends in the data. Explore this.
+
+```{r}
+p = data %>% 
+  group_by(Month) %>% 
+  ggplot(aes(x = Month, y = log(`Turbidity (NTU)`))) +
+  geom_boxplot(fill = "lightblue", color = "darkblue") +
+  theme_bw() +
+  theme(text = element_text(size = 10), 
+        axis.text.x = element_text(angle = 45, vjust = -0.5)) +
+  labs(y = "Log of Turbidity (NTU)")
+
+ggplotly(p)
+```
+
+# Independent research question: Do all water quality sites adhere to national health regulations?
+
+The United States Environmental Protection Agency (EPA) publishes [regulations](https://www.epa.gov/ground-water-and-drinking-water/national-primary-drinking-water-regulations) for what makes water safe to drink. Here are the regulations for some of the features contained in the NYC drinking water quality dataset:  
+
+* Residual free chlorine: 4 mg/L  
+* Turbidity: 1 Nephelometric Turbidity Unit (NTU) [note: additionally, for any given month, 95% of samples must be $\leq 0.3$ NTUs]
+* Fluoride: 4 mg/L
+* Coliform (Quanti-Tray): No more than 5% of samples from a site positive for any given month
+* E.coli (Quanti-Tray): No more than 5% of samples from a site positive for any given month  
+
+My research question is whether all sample sites and sample types adhere to these requirements for safe drinking water. For the sake of data completeness, I will focus only on the observations which have non-missing data for all variables:
+
+```{r}
+data_complete <- data %>%
+  tidyr::drop_na()
+```
+
+Since three of these five metrics require month-level aggregation for analysis, I will analyse the data at the level of each month. First, I will rename column names to have periods instead of spaces using `make.names`:
+
+```{r}
+data_complete <- data_complete %>%
+  # Replace spaces with periods in column names
+  rename_all(make.names)
+```
+
+It was also observed that one data point has "-" as the value for Coliform and E.Coli, indicating this data point is missing. Coincidentally, this observation is also missing fluoride levels. This observation will be dropped for the sake of data completeness:
+
+```{r, message = F}
+data_agg <- data_complete %>%
+  # Extract year from date
+  mutate(Year = year(Sample.Date)) %>%
+  # Create binary present/absent variables for Coliform and E.Coli
+  mutate(Coliform_Positive = Coliform..Quanti.Tray...MPN..100mL. != "<1",
+         E_Coli_Positive = E.coli.Quanti.Tray...MPN.100mL. != "<1") %>%
+  group_by(Month.Number, Year, Sample.Site, Sample.class) %>%
+  summarise(num_obs = n(),
+            Chlorine_Good = all(Residual.Free.Chlorine..mg.L. < 4),
+            Fluoride_Good = all(Fluoride..mg.L. < 4),
+            Turbidity_Good = all(Turbidity..NTU. < 1) & (sum(Turbidity..NTU. <= 0.3) / num_obs) >= 0.95,
+            Coliform_Good = sum(Coliform_Positive)/n() < 0.05,
+            E_Coli_Good = sum(E_Coli_Positive)/n() < 0.05)
+```
+First, I will visualize the distribution of each of the five testing conditions across all observations by month:
+
+```{r, message = F}
+library(cowplot)
+theme_set(theme_cowplot())
+data_agg %>%
+  pivot_longer(cols = c(Chlorine_Good:E_Coli_Good),
+               names_to = "Condition",
+               values_to = "Result") %>%
+  mutate(Condition = str_replace_all(Condition, "_Good", "")) %>%
+  ggplot(data=., mapping=aes(x=Condition)) +
+  geom_bar(aes(fill=Result)) +
+  coord_flip() +
+  xlab("Condition Tested") +
+  ylab("Observation by Month")
+```
+As the stacked bar plot shows, most observations adhere to guidelines for fluoride, E.coli, coliform, and chlorine; however, only a minority of monthly observations adhere to turbidity guidelines.
+
+This minority of samples meeting all requirements can be examined further:
+
+```{r}
+library(DT)
+data_agg %>%
+  filter(Chlorine_Good, 
+         Fluoride_Good,
+         Turbidity_Good,
+         Coliform_Good,
+         E_Coli_Good) %>%
+  arrange(Sample.Site, Year, Month.Number) %>%
+  DT::datatable()
+```
+
+There are a total of **79** observations by month that fulfill all of the requirements for chlorine, fluoride, turbidity, coliform, and E.coli. We can break this down by site to see if these are all different site (i.e. 79 different sites/observation types), or if some sites consistently meet these requirements across different months:
+
+```{r, message = F}
+data_agg %>%
+  group_by(Sample.Site, Sample.class) %>%
+  mutate(Number_of_Time_Points = n()) %>%
+  filter(Chlorine_Good, 
+         Fluoride_Good,
+         Turbidity_Good,
+         Coliform_Good,
+         E_Coli_Good) %>%
+  dplyr::summarise(Number_of_Compliant_Time_Points = n(),
+                   Percent_Compliant_Time_Points = 100*round(n()/Number_of_Time_Points, 4)) %>%
+  distinct() %>%
+  arrange(desc(Number_of_Compliant_Time_Points)) %>%
+  kable(.) %>%
+  kable_styling(full_width = F)
+```
+
+As the table shows, there are a total of **14** sample site and sample class combinations that met the EPA requirements for safe drinking water at one or more time points. The top two entries are both operational samples from two different sites (3SC26 and 1SCL1). The latter of the two (site 1SCL1) also met all requirements for entry point and op-resample classes as well.
+
+# Executive summary
+
+## Live lab worksheet component 
+In this document, NYC drinking water quality data was explored using data wrangling and visualization techniques. Data completeness was assessed by tabulating `NA` values with summary functions and using `naniar::vis_miss()`, which highlighted that data in the `Fluoride (mg/L)` column was missing in 87.11% (63,336) of observations. Given this fact, it would likely not be appropriate to unilaterally drop any observations with `NA` values using `tidyr::drop_na()`, as that would wipe out 87.11% of the data right off the bat based on `Fluoride (mg/L)` alone. Since the majority of data in this column is missing, imputation is likely not a tractable option either; for downstream analysis, if this feature is necessary to include and ~9,000 observations are sufficient, then `tidyr::drop_na()` could be used. However, if fluoride levels are not necessary to include, then this feature can be dropped; the only other feature with missing data is `Turbidity (NTU)`, in which 506 observations (0.7%) are missing. In this case, imputation techniques could be used to fill in those missing data and render the dataset complete.
+
+As the boxplots indicate, there were 100+ outliers in each of the evaluated variables (fluoride content, residual free chlorine content, and turbidity), with each feature exhibiting visibly skewed distribution. Fluoride was negative skewed, as evidenced by more outliers with values lower than the interquartile range (IQR). While residual free chlorine had one outlier with a large-magnitude negative observation, it is likely that this value is due to measurement error as it is impossible to have a negative quantity of chlorine; barring that one questionable observation, this variable exhibited a positive skew, given most outliers were greater than the IQR. For turbidity, it is difficult to be certain whether there are truly more outliers above the IQR or if there is overplotting for values below the IQR; at face value, it appears that turbidity also has a positive skew.
+
+For data cleaning, several new features were generated based on the `Sample Date` column to denote hour of the day, day of the week, week number out of the calendar year, and month number out of the calendar year. Categorical variables were additionally encoded as factors. The data were then aggregated to summarise the dates with the top 10 turbidity ratings; to compare median readings for fluoride, chloride, and turbidity across sample sites; to compare the distribution of chlorine levels across sample sites; to calculate which sample sites have the highest versus lowest levels of fluoride, chloride, and turbidity; and to visualize temporal trends in the median chloride, fluoride, and turbidity across all sample sites.
+
+## Independent research question component
+
+In the research question component, it was investigated whether sample sites and observation types met United States EPA requirements for safe drinking water. [EPA guidelines](https://www.epa.gov/ground-water-and-drinking-water/national-primary-drinking-water-regulations) for chlorine, fluoride, turbidity, Coliform, and E.coli were independently sourced and are described above. In order to directly compare sample types and classes for these features, only complete observations were included (i.e. any rows with `NA` values were dropped). Data were aggregated at the month level to work with month-based requirements (e.g. <5% of samples with detected E.coli per month) and the number of compliant sample types and samples were visualized as a stacked bar chart using `ggplot2::ggplot()`. The month-aggregated data were then filtered to only those observations for which all conditions were met, with the results displayed using an interactive HTML table with `DT::DT()`. These data were further aggregated to summarise the number of compliant months per observation site and sample type, with the results displayed using a static HTML table with `knitr::kable()`.
