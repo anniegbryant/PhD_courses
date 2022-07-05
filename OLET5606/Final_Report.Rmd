@@ -1,7 +1,7 @@
 ---
-title: "OLET5606"
+title: "Exploring Alzheimer's Disease Biomarkers with Data Wrangling"
+subtitle: "OLET5606 | July 2022 | The University of Sydney"
 author: "Annie Bryant"
-date: '2022-06-27'
 output: html_document
 ---
 
@@ -24,25 +24,19 @@ theme_set(theme_cowplot())
 
 # 1. Executive Summary
 
-This project report details the exploratory analysis and cleaning of cross-sectional neuroimaging and clinical data obtained from the [Open Acess Series of Imaging Studies (OASIS): Cross-Sectional Study](https://doi.org/10.1162/jocn.2007.19.9.1498). The dataset includes 416 adult participants at various points along the cognitive continuum from normal healthy aging to dementia. A linear modeling approach was taken to examine relationships between clinical and neuroanatomical variables and cognitive function, which ultimately yielded an $R^2$ value of [INSERT]. Such analyses can help us understand the key factors that contribute to cognitive decline versus normative aging with an increasingly older population.
+This project report details the exploratory analysis and cleaning of cross-sectional neuroimaging and clinical data obtained from the [Open Acess Series of Imaging Studies (OASIS): Cross-Sectional Study](https://doi.org/10.1162/jocn.2007.19.9.1498). The dataset includes 416 adult participants at various points along the cognitive continuum from normal healthy aging to dementia. Dataset features include cognitive test scores, demographic variables, and neuroimaging-derived brain volume measurements. Two different binary classification methods (logistic regression and random forest) were compared to distinguish cognitively healthy adults from those with dementia, both of which yielded an out-of-sample accuracy of 66.04%. Both classifiers highlighted normalized whole brain volume as the most relevant predictor for dementia status, which is consistent with literature linking [neurodegeneration-induced cortical thinning with cognitive decline](https://doi.org/10.1001%2Farchneurol.2011.192). Such analyses can help us understand the key factors that contribute to cognitive decline versus normative aging with an increasingly older population.
 
 # 2. Integrative Data Analysis (IDA)
 
-In recent years, there has been an increasing push to form multi-centre collaborations that integrate clinical, neuroimaging, and biomolecular data in a global effort to understand the multifactorial nature of dementia. Several consortiums have committed to sharing such rich datasets with academic researchers around the world, like ADNI, AIBL, and OASIS (ADD LINKS).
-
-This project report summarises the acquisition of such data from OASIS-3 and subsequent data cleaning, visualisation, and linear modeling. As this analysis is transparent and reproducible given the inclusion of all code used for this workflow, this work will be of interest to stakeholders with a shared interest in exploring the factors that collectively drive dementia, whether in the OASIS-3 dataset or similar.
+In recent years, there has been an increasing push to form multi-centre collaborations that integrate clinical, neuroimaging, and biomolecular data in a global effort to understand the multifactorial nature of dementia. Several consortiums have committed to sharing such rich datasets with academic researchers around the world, like the [Alzheimer's Disease Neuroimaging Initiative (ADNI)](https://doi.org/10.1002/jmri.21049), the [Australian Imaging, Biomarkers, and Lifestyle (AIBL) study of aging](https://doi.org/10.1017/S1041610209009405.), and the [Open Access Series of Imaging Studies (OASIS)](https://doi.org/10.1162/jocn.2007.19.9.1498). This report leverages the third of these datsets (OASIS), with a summary of data acquisition and cleaning, visualisation, and classification analysis As this analysis is transparent and reproducible given the inclusion of all code used for this workflow, this work will be of interest to stakeholders with a shared interest in exploring the factors that collectively drive dementia, whether in the OASIS dataset or similar.
 
 ## 2.1 Assessment of Data Provenance
 
-Origin of data cited and critically assessed, including reliability and limitations. 
+The OASIS Cross-Sectional study includes 416 participants of ages 18 to 96 assessed at the Washington University at Saint Louis (WUSTL) Knight Alzheimer's Disease Research Center (ADRC). Each visit per subject included a suite of structural and functional neuroimaging sequences that capture relevant anatomical biomarkers like cortical thickness, ventricle volume, and regional metabolism. All OASIS data is maintained at the [Central XNAT server](https://wiki.xnat.org/central/oasis-on-xnat-central-60981641.html) and is available to members of the research community by submitting a [data access application](https://www.oasis-brains.org/#access). Data were provided in part by the following Principal Investigators: D. Marcus, R, Buckner, J, Csernansky J. Morris; P50 AG05681, P01 AG03991, P01 AG026276, R01 AG021910, P20 MH071616, U24 RR021382. The OASIS cross-sectional dataset has been cited by 1,443 peer-reviewed publications according to Google Scholar, underscoring the scientific merit and statistical reliability of this dataset across analyses. Moreover, the OASIS author team is comprised of several prominent neuroimaging experts at the University of Washington and Massachusetts General Hospital, lending credence to the reliability of this data source.
 
-[Quick summary of OASIS -- what it is, who maintains the data]. The OASIS Cross-Sectional study includes 416 participants of ages 18 to 96 assessed at the Washington University at Saint Louis (WUSTL) Knight Alzheimer's Disease Research Center (ADRC). Each visit per subject included a suite of structural and functional neuroimaging sequences that capture relevant anatomical biomarkers like cortical thickness, ventricle volume, and regional metabolism. All OASIS data is maintained at the [Central XNAT server](https://wiki.xnat.org/central/oasis-on-xnat-central-60981641.html) and is available to members of the research community by submitting a [data access application](https://www.oasis-brains.org/#access). Data were provided in part by the following Principal Investigators: D. Marcus, R, Buckner, J, Csernansky J. Morris; P50 AG05681, P01 AG03991, P01 AG026276, R01 AG021910, P20 MH071616, U24 RR021382.
+## 2.2 Domain Knowledge
 
-[insert something about reliability of OASIS? How many citations does OASIS-1 cross-sectional have?]
-
-## 2.2 Domain Knowledge -- Background to Data assessed, including source, ethics and limitations. 
-
-All data and metadata accessed for this project were obtained from the [OASIS website](https://www.oasis-brains.org/#data). Any user who accesses OASIS data is required to comply with the [Data Use Agreement](https://www.oasis-brains.org/#access); as such, the author signed the data use agreement and submitted a request to access the data for this assignment. [Insert something about ethics -- all participants agreed for their data to be made available when enrolling in OASIS, etc.]
+All data and metadata accessed for this project were obtained from the [OASIS website](https://www.oasis-brains.org/#data). Any user who accesses OASIS data is required to comply with the [Data Use Agreement](https://www.oasis-brains.org/#access); as such, the author signed the data use agreement and submitted a request to access the data for this assignment. Additionally, all participants opted into the OASIS project after consenting to the release of their anonymised neuroimaging, clinical, and cognitive biomarker data, supporting the view that this is ethically sourced data.
 
 Upon complying with the data use agreement, the OASIS-1 cross-sectional dataset ("oasis_cross-sectional.csv") was downloaded as a CSV file from the [OASIS website](https://www.oasis-brains.org/#data) under the OASIS-1 tab. This cross-sectional dataset contains a total of 416 participants at various stages along the cognitive continuum from normative healthy aging to dementia. Of these 416, a validation cohort of 20 participants returned for a second set of observations, yielding a total of 436 observations in the dataset. Further information about this dataset can be found in the [OASIS cross-sectional data fact sheet](https://www.oasis-brains.org/files/oasis_cross-sectional_facts.pdf) and the [OASIS Data Dictionary](https://www.oasis-brains.org/files/OASIS-3_Imaging_Data_Dictionary_v1.5.pdf).
 
@@ -55,11 +49,12 @@ oasis_data <- read.csv("oasis_cross-sectional.csv", na.strings = c("", "NA", "N/
 We can visualize an overview of the data structure using `skimr::skim()`:
 ```{r}
 skim(oasis_data)
-```
+```  
 
-Some variables (e.g. M.F, Age, Hand) are self-explanatory (i.e. sex, age in years, handedness). However, for other variables, domain knowledge is needed to understanding their meaning and interpretation. For example, the author recognized that `MMSE` and `CDR` are two common measures of cognitive function often reported in dementia studies. `MMSE` refers to the [Mini Mental State Examination score](CITE), which is a cognitive test with scores ranging from 0 (lowest cognitive function) to 30 (highest cognitive function). The first variable in this dataset is a random identifier ascribed to each participant. The subscript _MR1 or _MR2 refers to whether the observation corresponds to the participant's first visit or follow-up validation visit.  `CDR` refers to the [Clinical Dementia Rating](https://doi.org/10.1192/bjp.140.6.566), which is a test for dementia with scores of 0 (healthy), 0.5 (questionable dementia), 1 (mild dementia), 2 (moderate dementia), or 3 (severe dementia). 
 
-Additionally, the author recognized two variables that are commonly used in structural neuroimaging research: `eTIV` and `nWBV`. `eTIV` refers to [estimated total intracranial volume](https://doi.org/10.1016/j.neuroimage.2004.06.018), which captures the total volume of brain tissue and ventricles in $mm^3$. Similarly, `nWBV` generally refers to [normalized whole brain volume](https://doi.org/10.1212/01.wnl.0000154530.72969.11), which is a ratio of the brain tissue to the eTIV -- this captures how much cranial space is occupied by brain tissue relative to cerebrospinal fluid (CSF). The latter metric is particularly relevant to dementia, as neurodegeneration causes cortical tissue to shrink and ventricles to enlarge with more CSF [CITE]. The author recognized that `ID` is likely a unique subject identifier; `Educ` is likely education level; and `SES` is likely socioeconomic status. However, the meaning of values in these columns is not clear without reading the fact sheet. The remaining variables (`ASF` and `Delay`) also remain unclear without further reading.
+Some variables (e.g. M.F, Age, Hand) are self-explanatory (i.e. sex, age in years, handedness). However, for other variables, domain knowledge is needed to understanding their meaning and interpretation. For example, the author recognized that `MMSE` and `CDR` are two common measures of cognitive function often reported in dementia studies. `MMSE` refers to the [Mini Mental State Examination score](doi:10.1001/archpsyc.1983.01790060110016), which is a cognitive test with scores ranging from 0 (lowest cognitive function) to 30 (highest cognitive function). The first variable in this dataset is a random identifier ascribed to each participant. The subscript _MR1 or _MR2 refers to whether the observation corresponds to the participant's first visit or follow-up validation visit.  `CDR` refers to the [Clinical Dementia Rating](https://doi.org/10.1192/bjp.140.6.566), which is a test for dementia with scores of 0 (healthy), 0.5 (questionable dementia), 1 (mild dementia), 2 (moderate dementia), or 3 (severe dementia). 
+
+Additionally, the author recognized two variables that are commonly used in structural neuroimaging research: `eTIV` and `nWBV`. `eTIV` refers to [estimated total intracranial volume](https://doi.org/10.1016/j.neuroimage.2004.06.018), which captures the total volume of brain tissue and ventricles in $mm^3$. Similarly, `nWBV` generally refers to [normalized whole brain volume](https://doi.org/10.1212/01.wnl.0000154530.72969.11), which is a ratio of the brain tissue to the eTIV -- this captures how much cranial space is occupied by brain tissue relative to cerebrospinal fluid (CSF). The latter metric is particularly relevant to dementia, as neurodegeneration causes [cortical tissue to shrink and ventricles to enlarge](https://doi.org/10.1016/j.rcl.2008.06.002) with more CSF. The author recognized that `ID` is likely a unique subject identifier; `Educ` is likely education level; and `SES` is likely socioeconomic status. However, the meaning of values in these columns is not clear without reading the fact sheet. The remaining variables (`ASF` and `Delay`) also remain unclear without further reading.
 
 The [fact sheet](https://www.oasis-brains.org/files/oasis_cross-sectional_facts.pdf) helped clarify the meaning and interpretation of these variables. As expected, `ID` is a unique subject identifier. This type of variable is customary for anonymised neuroimaging datasets so that researchers can link observations from the same participant across different datasets without needing any information that gives away the participant's identity. The subscript "_MR1" or "_MR2" refers to whether the observation corresponds to a baseline visit or a follow-up visit for the 20 participants with a second validation visit. This can be directly examined with data wrangling:
 
@@ -140,11 +135,13 @@ patchwork::wrap_plots(plot_list, ncol=4) + plot_annotation(
           plot.title = element_text(size=12))
 grid::grid.draw(grid::textGrob("Number of Participants", x = 0.01, rot = 90))
 grid::grid.draw(grid::textGrob("Feature Value", y = 0.01))
-```
+```  
+
+
 Of note, most participants are either younger than 25 or between the ages of ~60-80. `ASF` and `eTIV` both exhibit fairly normal distributions. CDR = 0 is the most common score, corresponding to the "non-demented" participant cohort. For validation study participants, most intervals between scans are less than 50 days. Participants are fairly spread out across educational and socioeconomic brackets, although the lowest education (1) and SES (5) levels have far fewer participants than the other levels. All participants in this cohort are right-handed, so this variable does not provide any added information. There are more female than male participants, and `MMSE` exhibits right skew (i.e. toward higher cognitive performance). `nWBV` exhibits a bimodal distribution, with one section centred around 0.75 and the other around 0.85.
 
 
-## 2.3 Exploration of Missing Data and Outliers: Exploration of missing data with naniar package or other tools, and identify and explain any impact outliers found may have
+## 2.3 Exploration of Missing Data and Outliers
 
 Now that the type and distribution of the variables has been characterised, it is vital to examine the frequency and distribution of missing data. This can be easily accomplished using the `naniar` package and the `vis_miss()` function:
 
@@ -166,10 +163,12 @@ oasis_data %>%
   theme(legend.position = "none",
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
-```
+```  
+
+
 The boxplot visualization reveals that there are 0 outliers for `Age` and `nWBV`, 1 outlier for `Delay` and `eTIV`, 2 outliers for `ASF`, and 6 outliers for `MMSE`. For `eTIV`, `ASF`, and `MMSE`, the outlier samples most likely reflect genuine anatomical and cognitive variability across participants; however, the `Delay` outlier just reflects one participant for whom the gap between visits was much longer (>75 days) than for the other participants (most <50 days).
 
-## 2.4 Data Cleaning: Summary of any data cleaning, including removal or changing of data
+## 2.4 Data Cleaning
 
 As the primary goal for this project is to explore cross-sectional data from healthy and cognitively impaired participants, the first step for data cleaning will be to filter the data to only baseline visits (i.e. drop follow-up validation visits):
 
@@ -202,8 +201,10 @@ We can re-examine the structure of the cleaned OASIS data now:
 
 ```{r}
 skimr::skim(oasis_data)
-```
-Now there are no missing data across the features. However, since the `Hand` column contains all "R" (i.e. all participants are right-handed), this column should also be dropped since it offers no added information:
+```  
+
+
+Now there are no missing data across the features -- albeit at the expense of omitting approximately half the participants for whom that data was missing. However, since the `Hand` column contains all "R" (i.e. all participants are right-handed), this column should also be dropped since it offers no added information:
 
 ```{r}
 oasis_data <- dplyr::select(oasis_data, c(-Hand))
@@ -214,7 +215,7 @@ oasis_data <- dplyr::select(oasis_data, c(-Hand))
 
 ## 3.1 Definition of research question
 
-This project endeavors to explore whether the anatomical and demographic variables contained in this dataset can predict whether an individual is cognitively healthy (CDR = 0) or has some degree of dementia (CDR > 0). INSERT CITATION ABOUT PREDICTING CDR SCORES. This question will be explored using two different types of binary classifiers: logistic regression and linear support vector machine.
+This project endeavors to explore whether the anatomical and demographic variables contained in this dataset can predict whether an individual is cognitively healthy (CDR = 0) or has some degree of dementia (CDR > 0). This question will be explored using two different types of binary classifiers: logistic regression and linear support vector machine.
 
 First, it is hypothesized that `MMSE` and `CDR` will be tightly correlated as they are both measures of cognitive function, and may therefore introduce redundancy to the data.
 
@@ -222,22 +223,24 @@ First, it is hypothesized that `MMSE` and `CDR` will be tightly correlated as th
 oasis_data %>%
   ggplot(data = ., mapping = aes(x = CDR, y = MMSE)) +
   geom_point()
-```
+```  
+
 The correlation can be quantified using Spearman's rho:
 ```{r}
 cor.test(oasis_data$CDR, oasis_data$MMSE, method="spearman")
-```
+```  
+
 Since `MMSE` and `CDR` exhibit a moderately strong negative correlation ($\rho = -0.69, p<0.0001$), `MMSE` will be dropped as it is redundant to `CDR`. 
 
 ```{r}
 oasis_data <- oasis_data %>% dplyr::select(-MMSE)
 ```
 
-To move forwar with classification analysis, a binary variable (`has_dementia`) can be constructed from `CDR`:
+To move forward with classification analysis, a binary variable (`has_dementia`) can be constructed from `CDR`:
 
 ```{r}
 oasis_data <- oasis_data %>%
-  dplyr::mutate(has_dementia = CDR > 0, .keep = "unused")
+  dplyr::mutate(has_dementia = as.character(CDR > 0), .keep = "unused")
 
 table(oasis_data$has_dementia)
 ```
@@ -275,21 +278,27 @@ The proportions are consisent, $\pm 1\%$. Now we can construct the two classific
 
 ```{r}
 # Logistic regression
-LR_model <- glm(has_dementia ~ ., data = training_data, family = 'binomial')
+LR_model <- glm(factor(has_dementia) ~ ., data = training_data, family = 'binomial')
 
 # Extract coefficients and significance
 data.frame(coefs = round(LR_model$coefficients, 3),
            SE = round(summary(LR_model)$coefficients[,2], 3),
            pvals = summary(LR_model)$coefficients[,4]) %>%
+  # Save rowname as new variable, "Term"
   tibble::rownames_to_column(var = "Term") %>%
+  # Omit intercept
   dplyr::filter(Term != "(Intercept)") %>%
+  # Add p-value stars according to standard conventions
   dplyr::mutate(stars = case_when(pvals < 0.0001 ~ "***",
                            pvals < 0.001 ~ "**",
                            pvals < 0.05 ~ "*",
                            T ~ ""),
                 .keep = "unused") %>%
+  arrange(coefs) %>%
+  # Tidy up value as coefficient (SE), with stars as appropriate
   dplyr::mutate(`Coefficient (SE)` = paste0(coefs, stars, " (", SE, ")"),
                 .keep = "unused") %>%
+  # Style with knitr
   kable(.) %>%
   kable_styling(full_width = F)
 ```
@@ -309,12 +318,17 @@ LR_test_preds <- ifelse(LR_test_pred_prob < 0.5, FALSE, TRUE)
 A similar approach can be taken for the random forest classifier.
 
 ```{r}
-RF_model <- randomForest(has_dementia ~ ., data=training_data, ntree=100, mtry=3, importance=TRUE)
+set.seed(127)
+RF_model <- randomForest(factor(has_dementia) ~ ., 
+                         type = "classification",
+                         data=training_data,
+                         ntree=100, mtry=3, importance=TRUE)
 ```
 
 While random forest classifiers don't yield coefficient estimates per variable, they do afford variable importance, which is derived from two factors: (1) increase in MSE when the given variable is omitted, indicating worse predictive performance without the variable; and (2) increase in node purity when variable is included, based on the GINI node impurity metric. These values can be visualized for the predictor terms:
 ```{r}
 as.data.frame(RF_model$importance) %>%
+  dplyr::select(c(MeanDecreaseAccuracy, MeanDecreaseGini)) %>%
   rownames_to_column(var = "Term") %>%
   pivot_longer(cols = c(-Term),
                names_to = "Metric",
@@ -335,34 +349,80 @@ Across both metrics, `nWBV` is the most important predictor term, which is in ke
 
 ```{r}
 # First make in-sample predictions as a baseline comparison
-RF_train_pred_prob <- predict(RF_model, newdata = training_data, type = "response")
-RF_train_preds <- ifelse(RF_train_pred_prob < 0.5, FALSE, TRUE)
+RF_train_preds <- predict(RF_model, newdata = training_data, type = "response")
 
 # Then make out-of-sample predictions
-RF_test_pred_prob <- predict(RF_model, newdata = testing_data, type = "response")
-RF_test_preds <- ifelse(RF_test_pred_prob < 0.5, FALSE, TRUE)
+RF_test_preds <- predict(RF_model, newdata = testing_data, type = "response")
 ```
 
 
 ## 3.3 Results
 
-Now that the two binary classification models have been applied to the testing data, their respective predictive performances can be compared.
+Predictive accuracy can be assessed by predicting classes on the test set and computing a confusion matrix to compare predictions with the actual class labels.
+
+Now that the two binary classification models have been applied to the testing data, their respective predictive performances can be compared. Since this is a binary classification task, predictive performance can be quantified as the accuracy between true labels (dementia vs. no dementia) and predicted labels in the training and testing datasets.
 
 ```{r}
-testing_data %>%
+# Tabulate training data classification accuracy results
+training_data_res <- training_data %>%
   dplyr::rename("Real" = "has_dementia") %>%
-  dplyr::mutate("LR_train_predicted" = LR_train_preds,
-                "RF_train_predicted" = RF_train_preds,
-                "LR_test_predicted" = LR_test_preds,
+  dplyr::mutate(Real = as.logical(Real)) %>%
+  dplyr::mutate("LR_train_predicted" = as.logical(LR_train_preds),
+                "RF_train_predicted" = as.logical(RF_train_preds)) %>%
+  dplyr::summarise(LR_train_accuracy = sum(LR_train_predicted == Real)/n(),
+                   RF_train_accuracy = sum(RF_train_predicted == Real)/n())
+  
+# Tabulate test data classification accuracy results
+testing_data_res <- testing_data %>%
+  dplyr::rename("Real" = "has_dementia") %>%
+  dplyr::mutate(Real = as.logical(Real)) %>%
+  dplyr::mutate("LR_test_predicted" = LR_test_preds,
                 "RF_test_predicted" = RF_test_preds) %>%
   dplyr::summarise(LR_test_accuracy = sum(LR_test_predicted == Real)/n(),
-                   RF_test_accuracy = sum(RF_test_predicted == Real)/n(),
-                   LR_test_accuracy = sum(LR_test_predicted == Real)/n(),
                    RF_test_accuracy = sum(RF_test_predicted == Real)/n())
-```
 
+# Merge results for visualization
+cbind(training_data_res, testing_data_res) %>%
+  pivot_longer(cols = everything(),
+               names_to = "Metric",
+               values_to = "Accuracy") %>%
+  mutate(Sample_Type = ifelse(str_detect(Metric, "train"), "Train", "Test"),
+         Classifier = ifelse(str_detect(Metric, "LR"), "LR", "RF"),
+         .keep = "unused") %>%
+  mutate(Sample_Type = factor(Sample_Type, 
+                              levels = c("Train", "Test"))) %>%
+  ggplot(data = ., mapping = aes(x = Sample_Type, y = Accuracy, 
+                                 group = Classifier, color = Classifier)) +
+  geom_line() +
+  geom_point(show.legend = F) +
+  xlab("Sample Type") +
+  ylab("Dementia Classification Accuracy") +
+  theme(legend.position = "bottom")
+```  
+
+
+As is expected, both classifiers perform better when applied to the in-sample training dataset than the out-of-sample testing dataset. Interestingly, the RF classifier achieved 100% in-sample accuracy while the LR classifier achieved only 74.23% in-sample accuracy; for the out-of-sample testing data, both algorithms achieved the same accuracy (66.04%). It is important to note that there are class imbalances in the data, as the OASIS dataset used here is comprised of 61.57% non-dementia and 38.43% dementia participants; however, the out-of-sample accuracy values are higher than the non-dementia proportion, suggesting the classifiers are not merely labelling all samples as non-dementia.
+
+```{r}
+#LR
+cat("\nLR confusion matrix:\n")
+caret::confusionMatrix(data=as.factor(LR_test_preds), reference=as.factor(testing_data$has_dementia))
+#RF
+cat("\nRF confusion matrix:\n")
+caret::confusionMatrix(data=as.factor(RF_test_preds), reference=as.factor(testing_data$has_dementia))
+```
 
 
 # 4. Conclusions
 
-Explanation of how data wrangling tools have helped generate insightful answers to these research questions.
+## 4.1 Summary of findings
+
+In this report, an open-access cognitive and neuroimaging biomarker dataset was leveraged to analyse prediction performance in classifying cognitively healthy older adults versus adults with dementia. Two distinct binary classifiers yielded identical out-of-sample classification accuracy (66.04%) using the final set of seven input features: sex, age, highest level of education, socioeconomic status, intracranial volume, normalized whole-brain volume, and atlas scaling factor. Both classifiers highlighted normalized whole-brain volume, with LR yielding the largest-magnitude coefficient and RF yielding the largest variable importance. This is consistent with [prior peer-reviewed literature](https://doi.org/10.1001%2Farchneurol.2011.192) reporting a positive linear association between nWBV and cognitive performance.
+
+## 4.2 Remarks on data wrangling
+
+Data tidying and wrangling techniques were implemented at each step of the analysis and ultimately formed the bedrock of this project. The majority of tools utilized herein come from the `tidyverse` suite of packages; perhaps one of the most useful is the combination of `pivot_longer` and `pivot_wider` from `tidyr`, which enables the data to be quickly transposed from wide to long -- and perhaps back to wide again -- for data summarisation purposes. In this analysis alone, `pivot_longer` was called five times, particularly since the original dataset came in a tidy but wide format. 
+
+In order to prepare the OASIS dataset for binary classification analysis with LR and RF models, data wrangling was implemented at several steps: to filter observations to only the baseline visit per participant, to omit columns with no unique values (e.g. Delay, Hand), o drop observations with `NA` values to ensure data completeness, and to construct the `has_dementia` feature. Data visualization served as a key tool to elucidate the underlying structure of the data, and wrangling was used to organise facet plots for histogram or boxplot visuals. The results from the LR and RF models were also integrated using wrangling tools, for both table and plot outputs.
+
+Data wrangling tools enable the efficient and elegant transformation from original dataset to graphical outputs and model interpretations with minimal code -- for example, for the entire workflow presented herein, only 210 lines of code were utilized. By leaving behind a code "paper trail" during data manipulation, the exact same analyses can be easily replicated on multiple datasets, which is vital to ensure consistency and precision in multi-dataset projects.
